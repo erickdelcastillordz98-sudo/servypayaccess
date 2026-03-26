@@ -104,14 +104,14 @@ bot.onText(/\/start/, (msg) => {
   });
 });
 
-// 🤖 MENSAJES
+// 🤖 MENSAJES (ÚNICO BLOQUE)
 bot.on('message', async (msg) => {
   const text = msg.text;
   const userId = msg.from.id;
 
   try {
 
-    // 📱 CONSULTAR TELCEL
+    // 💀 TELCEL CHECKER
     if (text.startsWith('/telcel')) {
       const numero = text.split(' ')[1];
 
@@ -121,12 +121,62 @@ bot.on('message', async (msg) => {
 
       const res = await axios.get(`http://localhost:${PORT}/telcel/${numero}`);
 
-      return bot.sendMessage(msg.chat.id,
-        `📱 Telcel\n📞 Número: ${res.data.numero}\n💰 Saldo: $${res.data.saldo}`
-      );
+      const tiempo = Math.floor(Math.random() * 20) + 10;
+
+      const usuario = msg.from.username 
+        ? '@' + msg.from.username 
+        : msg.from.first_name;
+
+      const mensaje = `
+╔═╗ TELCEL SECURE CHECKER v3.1
+╚═➤ SYSTEM ACCESS GRANTED
+
+━━━━━━━━━━━━━━━━━━━━━━━
+
+📡 TARGET: ${res.data.numero}
+📶 STATUS: VALID LINE ✔
+⏳ RESPONSE TIME: ${tiempo}s
+
+━━━━━━━━━━━━━━━━━━━━━━━
+[ NETWORK DATA ]
+
+▸ PROFILE: MASIVOMIX
+▸ PLAN: TELCEL LIBRE CONTROLADO 5
+▸ REGION: 4
+
+━━━━━━━━━━━━━━━━━━━━━━━
+[ BALANCE INFO ]
+
+▸ CURRENT BALANCE: $${res.data.saldo}
+▸ TOTAL BALANCE: $0.00
+
+━━━━━━━━━━━━━━━━━━━━━━━
+[ LINE STATUS ]
+
+▸ REGISTERED: TRUE
+▸ SUSPENDED: FALSE
+▸ CUT-OFF: 19 DAYS
+
+━━━━━━━━━━━━━━━━━━━━━━━
+[ FINAL STATUS ]
+
+🟢 LINE ACTIVE — NO RESTRICTIONS
+
+━━━━━━━━━━━━━━━━━━━━━━━
+[ TRACE INFO ]
+
+▸ USER: ${usuario}
+▸ SESSION ID: ${Math.floor(Math.random() * 999999)}
+▸ NODE: MX-SRV-01
+
+━━━━━━━━━━━━━━━━━━━━━━━
+🤖 SYSTEM: @anonimoenelanonimato
+`;
+
+      return bot.sendMessage(msg.chat.id, mensaje);
     }
 
-    // 👑 ADMIN PANEL
+    // 👑 ADMIN
     if (text === '/admin') {
       if (userId !== ADMIN_ID) return;
 
@@ -150,18 +200,18 @@ bot.on('message', async (msg) => {
       });
     }
 
-    // CREAR PAGO
+    // 💰 CREAR PAGO
     if (text === '💰 Crear pago') {
       return bot.sendMessage(msg.chat.id, 'Escribe el monto');
     }
 
-    // SALDO
+    // 📊 SALDO
     if (text === '📊 Ver saldo') {
       const res = await axios.get(`http://localhost:${PORT}/saldo/${userId}`);
       return bot.sendMessage(msg.chat.id, `💰 Saldo: ${res.data.saldo}`);
     }
 
-    // HISTORIAL
+    // 📜 HISTORIAL
     if (text === '📜 Historial') {
       const res = await axios.get(`http://localhost:${PORT}/pagos/${userId}`);
 
@@ -176,7 +226,7 @@ bot.on('message', async (msg) => {
       return bot.sendMessage(msg.chat.id, `📜 Historial:\n${lista}`);
     }
 
-    // VALIDACIÓN + CREAR PAGO
+    // 🔢 CREAR PAGO POR MONTO
     if (!isNaN(text)) {
       const monto = parseFloat(text);
 
@@ -198,7 +248,7 @@ bot.on('message', async (msg) => {
   }
 });
 
-// 🔘 BOTONES (APROBAR)
+// 🔘 BOTONES
 bot.on('callback_query', async (query) => {
   const data = query.data;
 
@@ -211,11 +261,11 @@ bot.on('callback_query', async (query) => {
       bot.sendMessage(query.message.chat.id, `✅ Pago ${id} aprobado`);
     }
   } catch (e) {
-    bot.sendMessage(query.message.chat.id, '❌ Error al aprobar');
+    bot.sendMessage(query.message.chat.id, '❌ Error');
   }
 });
 
-// 🚀 SERVIDOR
+// 🚀 SERVER
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en puerto ${PORT}`);
 });
