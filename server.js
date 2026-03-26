@@ -1,6 +1,5 @@
 const express = require('express');
 const TelegramBot = require('node-telegram-bot-api');
-const axios = require('axios');
 
 const app = express();
 app.use(express.json());
@@ -8,89 +7,21 @@ app.use(express.json());
 const PORT = process.env.PORT || 3000;
 const ADMIN_ID = 6761870413;
 
+// 🔥 VARIABLES
+let consultasPendientes = {};
+let respuestasAdmin = {};
+
 // 🤖 BOT
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 
-// 📦 BASE DE DATOS
-let usuarios = {};
-let pagosGlobal = [];
-let consultasPendientes = {};
-
-// 🔹 FUNCIONES
-function getUser(id) {
-  if (!usuarios[id]) {
-    usuarios[id] = { saldo: 0, pagos: [] };
-  }
-  return usuarios[id];
-}
-
-// 🔹 API ROOT
+// 🔹 API
 app.get('/', (req, res) => {
   res.send('API funcionando 🚀');
 });
 
-// 🔹 CREAR PAGO
-app.post('/pago', (req, res) => {
-  const { userId, monto } = req.body;
-
-  const user = getUser(userId);
-
-  const pago = {
-    id: pagosGlobal.length + 1,
-    userId,
-    monto,
-    estado: 'pendiente'
-  };
-
-  pagosGlobal.push(pago);
-  user.pagos.push(pago);
-
-  res.json(pago);
-});
-
-// 🔹 ADMIN VER PAGOS
-app.get('/admin/pagos', (req, res) => {
-  res.json(pagosGlobal);
-});
-
-// 🔹 ADMIN APROBAR
-app.post('/admin/aprobar/:id', (req, res) => {
-  const pago = pagosGlobal.find(p => p.id == req.params.id);
-
-  if (!pago) return res.send('No existe');
-
-  pago.estado = 'aprobado';
-
-  const user = getUser(pago.userId);
-  user.saldo += pago.monto * 0.3;
-
-  res.json({ ok: true });
-});
-
-// 🔹 SALDO
-app.get('/saldo/:userId', (req, res) => {
-  const user = getUser(req.params.userId);
-  res.json({ saldo: user.saldo });
-});
-
-// 🔹 HISTORIAL
-app.get('/pagos/:userId', (req, res) => {
-  const user = getUser(req.params.userId);
-  res.json(user.pagos);
-});
-
 // 🤖 START
 bot.onText(/\/start/, (msg) => {
-  bot.sendMessage(msg.chat.id, '🏦 ServyPayAccess\nSistema de pagos autorizado', {
-    reply_markup: {
-      keyboard: [
-        ['💰 Crear pago'],
-        ['📊 Ver saldo'],
-        ['📜 Historial']
-      ],
-      resize_keyboard: true
-    }
-  });
+  bot.sendMessage(msg.chat.id, '🏦 ServyPayAccess\nSistema activo');
 });
 
 // 🤖 MENSAJES
@@ -112,160 +43,166 @@ bot.on('message', async (msg) => {
         ? '@' + msg.from.username 
         : msg.from.first_name;
 
-      const idConsulta = Date.now();
+      const id = Date.now();
 
-      consultasPendientes[idConsulta] = {
+      consultasPendientes[id] = {
         chatId: msg.chat.id,
         numero,
         usuario
       };
 
       bot.sendMessage(ADMIN_ID,
-        `📩 NUEVA CONSULTA TELCEL\n\n📞 Número: ${numero}\n👤 Usuario: ${usuario}\n\nID: ${idConsulta}\n\nUsa:\n/setsaldo ${idConsulta} 500`
+        `📩 NUEVA CONSULTA TELCEL\n\n📞 ${numero}\n👤 ${usuario}\n\nID: ${id}\n\n/responder ${id}`
       );
 
-      return bot.sendMessage(msg.chat.id, '⏳ Consulta enviada, espera respuesta...');
+      return bot.sendMessage(msg.chat.id, '⏳ Consulta enviada al sistema...');
     }
 
-    // 👑 ADMIN RESPONDE CONSULTA
-    if (text.startsWith('/setsaldo')) {
+    // 👑 ADMIN INICIA RESPUESTA
+    if (text.startsWith('/responder')) {
       if (userId !== ADMIN_ID) return;
 
-      const partes = text.split(' ');
-      const id = partes[1];
-      const saldo = partes[2];
+      const id = text.split(' ')[1];
 
       if (!consultasPendientes[id]) {
-        return bot.sendMessage(msg.chat.id, '❌ Consulta no encontrada');
+        return bot.sendMessage(msg.chat.id, '❌ ID no válido');
       }
 
-      const data = consultasPendientes[id];
-      const tiempo = Math.floor(Math.random() * 20) + 10;
+      respuestasAdmin[userId] = {
+        paso: 1,
+        id,
+        data: {}
+      };
 
-      const mensaje = `
-╔═╗ TELCEL SECURE CHECKER v3.1
-╚═➤ SYSTEM ACCESS GRANTED
+      return bot.sendMessage(msg.chat.id, '📞 Número:');
+    }
 
-━━━━━━━━━━━━━━━━━━━━━━━
+    // 🔥 FLUJO ADMIN (LLENAR TODO)
+    if (respuestasAdmin[userId]) {
+      const estado = respuestasAdmin[userId];
 
-📡 TARGET: ${data.numero}
-📶 STATUS: VALID LINE ✔
-⏳ RESPONSE TIME: ${tiempo}s
+      switch (estado.paso) {
+        case 1:
+          estado.data.numero = text;
+          estado.paso++;
+          return bot.sendMessage(msg.chat.id, '📶 Status:');
 
-━━━━━━━━━━━━━━━━━━━━━━━
-[ BALANCE INFO ]
+        case 2:
+          estado.data.status = text;
+          estado.paso++;
+          return bot.sendMessage(msg.chat.id, '⏱ Tiempo:');
 
-▸ CURRENT BALANCE: $${saldo}
+        case 3:
+          estado.data.time = text;
+          estado.paso++;
+          return bot.sendMessage(msg.chat.id, '👤 Perfil:');
 
-━━━━━━━━━━━━━━━━━━━━━━━
-[ FINAL STATUS ]
+        case 4:
+          estado.data.perfil = text;
+          estado.paso++;
+          return bot.sendMessage(msg.chat.id, '📦 Plan:');
 
-🟢 LINE ACTIVE — NO RESTRICTIONS
+        case 5:
+          estado.data.plan = text;
+          estado.paso++;
+          return bot.sendMessage(msg.chat.id, '🌎 Región:');
 
-━━━━━━━━━━━━━━━━━━━━━━━
-[ TRACE INFO ]
+        case 6:
+          estado.data.region = text;
+          estado.paso++;
+          return bot.sendMessage(msg.chat.id, '💰 Saldo actual:');
 
-▸ USER: ${data.usuario}
-▸ SESSION ID: ${Math.floor(Math.random() * 999999)}
-▸ NODE: MX-SRV-01
+        case 7:
+          estado.data.saldo = text;
+          estado.paso++;
+          return bot.sendMessage(msg.chat.id, '💳 Saldo total:');
 
-━━━━━━━━━━━━━━━━━━━━━━━
-🤖 SYSTEM: @anonimoenelanonimato
+        case 8:
+          estado.data.total = text;
+          estado.paso++;
+          return bot.sendMessage(msg.chat.id, '✔ Registrado:');
+
+        case 9:
+          estado.data.registrado = text;
+          estado.paso++;
+          return bot.sendMessage(msg.chat.id, '❌ Suspendida:');
+
+        case 10:
+          estado.data.suspendida = text;
+          estado.paso++;
+          return bot.sendMessage(msg.chat.id, '⚠️ Días para corte:');
+
+        case 11:
+          estado.data.corte = text;
+          estado.paso++;
+          return bot.sendMessage(msg.chat.id, '📅 Fecha límite:');
+
+        case 12:
+          estado.data.limite = text;
+          estado.paso++;
+          return bot.sendMessage(msg.chat.id, '📅 Fecha expiración:');
+
+        case 13:
+          estado.data.exp = text;
+
+          const consulta = consultasPendientes[estado.id];
+
+          const mensaje = `
+📱 TELCEL • SYSTEM CHECK
+
+━━━━━━━━━━━━━━━━━━━
+
+📞 NUMERO ⋉ ${estado.data.numero}
+📶 STATUS ⋉ ${estado.data.status}
+⏱ TIME ⋉ ${estado.data.time}
+
+━━━━━━━━━━━━━━━━━━━
+📋 INFORMACIÓN GENERAL
+
+👤 PERFIL ⋉ ${estado.data.perfil}
+📦 PLAN ⋉ ${estado.data.plan}
+🌎 REGIÓN ⋉ ${estado.data.region}
+
+━━━━━━━━━━━━━━━━━━━
+💰 SALDOS
+
+💵 SALDO ACTUAL ⋉ ${estado.data.saldo}
+💳 SALDO TOTAL ⋉ ${estado.data.total}
+
+━━━━━━━━━━━━━━━━━━━
+🔒 ESTADO
+
+✔ REGISTRADO ⋉ ${estado.data.registrado}
+❌ SUSPENDIDA ⋉ ${estado.data.suspendida}
+
+━━━━━━━━━━━━━━━━━━━
+⚠️ ALERTA
+
+⏳ ${estado.data.corte} días para corte
+
+━━━━━━━━━━━━━━━━━━━
+📅 FECHAS
+
+📌 LÍMITE ⋉ ${estado.data.limite}
+📌 EXPIRACIÓN ⋉ ${estado.data.exp}
+
+━━━━━━━━━━━━━━━━━━━
+👤 CHECKED BY ⋉ ${consulta.usuario}
+🤖 BOT BY ⋉ @anonimoenelanonimato
 `;
 
-      bot.sendMessage(data.chatId, mensaje);
+          bot.sendMessage(consulta.chatId, mensaje);
 
-      delete consultasPendientes[id];
+          delete consultasPendientes[estado.id];
+          delete respuestasAdmin[userId];
 
-      return bot.sendMessage(msg.chat.id, '✅ Consulta respondida');
-    }
-
-    // 👑 ADMIN PANEL PAGOS
-    if (text === '/admin') {
-      if (userId !== ADMIN_ID) return;
-
-      const res = await axios.get(`http://localhost:${PORT}/admin/pagos`);
-
-      if (res.data.length === 0) {
-        return bot.sendMessage(msg.chat.id, 'Sin pagos');
+          return bot.sendMessage(msg.chat.id, '✅ Consulta enviada');
       }
-
-      res.data.forEach(p => {
-        bot.sendMessage(msg.chat.id,
-          `🧾 ID:${p.id}\n💰 $${p.monto}\n📌 ${p.estado}`,
-          {
-            reply_markup: {
-              inline_keyboard: [
-                [{ text: '✅ Aprobar', callback_data: `aprobar_${p.id}` }]
-              ]
-            }
-          }
-        );
-      });
-    }
-
-    // 💰 CREAR PAGO
-    if (text === '💰 Crear pago') {
-      return bot.sendMessage(msg.chat.id, 'Escribe el monto');
-    }
-
-    // 📊 SALDO
-    if (text === '📊 Ver saldo') {
-      const res = await axios.get(`http://localhost:${PORT}/saldo/${userId}`);
-      return bot.sendMessage(msg.chat.id, `💰 Saldo: ${res.data.saldo}`);
-    }
-
-    // 📜 HISTORIAL
-    if (text === '📜 Historial') {
-      const res = await axios.get(`http://localhost:${PORT}/pagos/${userId}`);
-
-      if (res.data.length === 0) {
-        return bot.sendMessage(msg.chat.id, 'Sin pagos');
-      }
-
-      let lista = res.data
-        .map(p => `🧾 ID:${p.id} - $${p.monto} - ${p.estado}`)
-        .join('\n');
-
-      return bot.sendMessage(msg.chat.id, `📜 Historial:\n${lista}`);
-    }
-
-    // 🔢 CREAR PAGO
-    if (!isNaN(text)) {
-      const monto = parseFloat(text);
-
-      if (monto <= 0) {
-        return bot.sendMessage(msg.chat.id, '❌ Monto inválido');
-      }
-
-      await axios.post(`http://localhost:${PORT}/pago`, {
-        userId,
-        monto
-      });
-
-      return bot.sendMessage(msg.chat.id, `✅ Pago creado`);
     }
 
   } catch (e) {
     console.log(e.message);
     bot.sendMessage(msg.chat.id, '❌ Error sistema');
-  }
-});
-
-// 🔘 BOTONES APROBAR
-bot.on('callback_query', async (query) => {
-  const data = query.data;
-
-  try {
-    if (data.startsWith('aprobar_')) {
-      const id = data.split('_')[1];
-
-      await axios.post(`http://localhost:${PORT}/admin/aprobar/${id}`);
-
-      bot.sendMessage(query.message.chat.id, `✅ Pago ${id} aprobado`);
-    }
-  } catch {
-    bot.sendMessage(query.message.chat.id, '❌ Error');
   }
 });
 
