@@ -4,7 +4,6 @@ bot.on('message', async (msg) => {
 
   try {
 
-    // 👑 ADMIN PANEL
     if (text === '/admin') {
       if (userId !== ADMIN_ID) return;
 
@@ -17,7 +16,6 @@ bot.on('message', async (msg) => {
       return bot.sendMessage(msg.chat.id, `👑 PANEL ADMIN\n${lista || 'Sin pagos'}`);
     }
 
-    // 👑 APROBAR
     if (text.startsWith('/aprobar')) {
       if (userId !== ADMIN_ID) return;
 
@@ -28,18 +26,15 @@ bot.on('message', async (msg) => {
       return bot.sendMessage(msg.chat.id, `✅ Pago ${id} aprobado`);
     }
 
-    // CREAR PAGO
     if (text === '💰 Crear pago') {
       return bot.sendMessage(msg.chat.id, 'Escribe el monto');
     }
 
-    // SALDO
     if (text === '📊 Ver saldo') {
       const res = await axios.get(`http://localhost:${PORT}/saldo/${userId}`);
       return bot.sendMessage(msg.chat.id, `💰 Saldo: ${res.data.saldo}`);
     }
 
-    // HISTORIAL
     if (text === '📜 Historial') {
       const res = await axios.get(`http://localhost:${PORT}/pagos/${userId}`);
 
@@ -48,7 +43,6 @@ bot.on('message', async (msg) => {
       return bot.sendMessage(msg.chat.id, lista || 'Sin pagos');
     }
 
-    // SI ES NÚMERO
     if (!isNaN(text)) {
       const monto = parseFloat(text);
 
