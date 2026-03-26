@@ -28,6 +28,15 @@ bot.onText(/\/start/, (msg) => {
   });
 });
 
+// 👑 ADMIN PANEL SIMPLE
+bot.onText(/\/admin/, (msg) => {
+  if (msg.from.id !== ADMIN_ID) return;
+
+  const total = Object.keys(consultas).length;
+
+  bot.sendMessage(msg.chat.id, `👑 PANEL ADMIN\n\n📩 Consultas pendientes: ${total}`);
+});
+
 // 🔘 BOTONES ADMIN
 bot.on('callback_query', (query) => {
   const data = query.data;
@@ -72,7 +81,7 @@ bot.on('callback_query', (query) => {
     });
   }
 
-  // 💰 SALDO RÁPIDO
+  // 💰 SALDO
   if (action === 'saldo') {
     const saldo = parts[2];
 
@@ -99,18 +108,20 @@ bot.on('callback_query', (query) => {
   }
 });
 
-// 🤖 MENSAJES (UNO SOLO)
+// 🤖 MENSAJES
 bot.on('message', (msg) => {
-  const text = msg.text;
+  const text = msg.text?.trim();
   const userId = msg.from.id;
 
-  // 🔹 BOTÓN USUARIO
+  // BOTÓN
   if (text === '📱 Consultar Telcel') {
     return bot.sendMessage(msg.chat.id, '📞 Envía el número:');
   }
 
-  // 🔹 USUARIO ENVÍA NÚMERO
-  if (!isNaN(text) && text.length >= 10 && userId !== ADMIN_ID) {
+  // 🔥 DETECCIÓN REAL DE NÚMERO
+  const numero = text?.replace(/\D/g, '');
+
+  if (numero && numero.length >= 10 && userId !== ADMIN_ID) {
     const id = Date.now();
 
     const usuario = msg.from.username 
@@ -119,12 +130,12 @@ bot.on('message', (msg) => {
 
     consultas[id] = {
       chatId: msg.chat.id,
-      numero: text,
+      numero,
       usuario
     };
 
     bot.sendMessage(ADMIN_ID,
-      `📩 NUEVA CONSULTA\n\n📞 ${text}\n👤 ${usuario}`,
+      `📩 NUEVA CONSULTA\n\n📞 ${numero}\n👤 ${usuario}`,
       {
         reply_markup: {
           inline_keyboard: [
@@ -139,7 +150,7 @@ bot.on('message', (msg) => {
     return bot.sendMessage(msg.chat.id, '⏳ Consulta enviada...');
   }
 
-  // 🔥 FLUJO ADMIN (EDITAR)
+  // 🔥 FLUJO ADMIN
   if (sesionesAdmin[userId]) {
     const estado = sesionesAdmin[userId];
 
