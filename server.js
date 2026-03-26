@@ -22,12 +22,12 @@ function getUser(id) {
   return usuarios[id];
 }
 
-// API ROOT
+// 🔹 API ROOT
 app.get('/', (req, res) => {
   res.send('API funcionando 🚀');
 });
 
-// CREAR PAGO
+// 🔹 CREAR PAGO
 app.post('/pago', (req, res) => {
   const { userId, monto } = req.body;
 
@@ -46,12 +46,12 @@ app.post('/pago', (req, res) => {
   res.json(pago);
 });
 
-// ADMIN VER PAGOS
+// 🔹 ADMIN VER PAGOS
 app.get('/admin/pagos', (req, res) => {
   res.json(pagosGlobal);
 });
 
-// ADMIN APROBAR
+// 🔹 ADMIN APROBAR
 app.post('/admin/aprobar/:id', (req, res) => {
   const pago = pagosGlobal.find(p => p.id == req.params.id);
 
@@ -65,16 +65,29 @@ app.post('/admin/aprobar/:id', (req, res) => {
   res.json({ ok: true });
 });
 
-// SALDO
+// 🔹 SALDO
 app.get('/saldo/:userId', (req, res) => {
   const user = getUser(req.params.userId);
   res.json({ saldo: user.saldo });
 });
 
-// HISTORIAL
+// 🔹 HISTORIAL
 app.get('/pagos/:userId', (req, res) => {
   const user = getUser(req.params.userId);
   res.json(user.pagos);
+});
+
+// 🔹 TELCEL (SIMULADO)
+app.get('/telcel/:numero', (req, res) => {
+  const numero = req.params.numero;
+
+  const saldo = Math.floor(Math.random() * 500) + 50;
+
+  res.json({
+    servicio: 'Telcel',
+    numero,
+    saldo
+  });
 });
 
 // 🤖 START
@@ -98,7 +111,22 @@ bot.on('message', async (msg) => {
 
   try {
 
-    // 👑 ADMIN PANEL CON BOTONES
+    // 📱 CONSULTAR TELCEL
+    if (text.startsWith('/telcel')) {
+      const numero = text.split(' ')[1];
+
+      if (!numero) {
+        return bot.sendMessage(msg.chat.id, '❌ Usa: /telcel 833XXXXXXX');
+      }
+
+      const res = await axios.get(`http://localhost:${PORT}/telcel/${numero}`);
+
+      return bot.sendMessage(msg.chat.id,
+        `📱 Telcel\n📞 Número: ${res.data.numero}\n💰 Saldo: $${res.data.saldo}`
+      );
+    }
+
+    // 👑 ADMIN PANEL
     if (text === '/admin') {
       if (userId !== ADMIN_ID) return;
 
@@ -187,7 +215,7 @@ bot.on('callback_query', async (query) => {
   }
 });
 
-// SERVIDOR
+// 🚀 SERVIDOR
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en puerto ${PORT}`);
 });
