@@ -28,13 +28,13 @@ bot.onText(/\/start/, (msg) => {
   });
 });
 
-// 👑 ADMIN PANEL SIMPLE
+// 👑 ADMIN PANEL
 bot.onText(/\/admin/, (msg) => {
   if (msg.from.id !== ADMIN_ID) return;
 
   const total = Object.keys(consultas).length;
 
-  bot.sendMessage(msg.chat.id, `👑 PANEL ADMIN\n\n📩 Consultas pendientes: ${total}`);
+  bot.sendMessage(msg.chat.id, `👑 PANEL ADMIN\n\n📩 Pendientes: ${total}`);
 });
 
 // 🔘 BOTONES ADMIN
@@ -81,7 +81,7 @@ bot.on('callback_query', (query) => {
     });
   }
 
-  // 💰 SALDO
+  // 💰 RESPUESTA RÁPIDA
   if (action === 'saldo') {
     const saldo = parts[2];
 
@@ -108,49 +108,51 @@ bot.on('callback_query', (query) => {
   }
 });
 
-// 🤖 MENSAJES
+// 🤖 MENSAJES (UNO SOLO)
 bot.on('message', (msg) => {
-  const text = msg.text?.trim();
+  const text = (msg.text || '').trim();
   const userId = msg.from.id;
 
-  // BOTÓN
+  // 🔹 BOTÓN
   if (text === '📱 Consultar Telcel') {
     return bot.sendMessage(msg.chat.id, '📞 Envía el número:');
   }
 
-  // 🔥 DETECCIÓN REAL DE NÚMERO
-  const numero = text?.replace(/\D/g, '');
+  // 🔥 DETECCIÓN ULTRA SEGURA DE NÚMERO
+  if (userId !== ADMIN_ID) {
+    const numero = text.replace(/[^0-9]/g, '');
 
-  if (numero && numero.length >= 10 && userId !== ADMIN_ID) {
-    const id = Date.now();
+    if (numero.length >= 10 && numero.length <= 15) {
+      const id = Date.now();
 
-    const usuario = msg.from.username 
-      ? '@' + msg.from.username 
-      : msg.from.first_name;
+      const usuario = msg.from.username 
+        ? '@' + msg.from.username 
+        : msg.from.first_name;
 
-    consultas[id] = {
-      chatId: msg.chat.id,
-      numero,
-      usuario
-    };
+      consultas[id] = {
+        chatId: msg.chat.id,
+        numero,
+        usuario
+      };
 
-    bot.sendMessage(ADMIN_ID,
-      `📩 NUEVA CONSULTA\n\n📞 ${numero}\n👤 ${usuario}`,
-      {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: '✏️ Editar', callback_data: `edit_${id}` }],
-            [{ text: '⚡ Respuesta rápida', callback_data: `fast_${id}` }],
-            [{ text: '❌ Rechazar', callback_data: `cancel_${id}` }]
-          ]
+      bot.sendMessage(ADMIN_ID,
+        `📩 NUEVA CONSULTA\n\n📞 ${numero}\n👤 ${usuario}`,
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '✏️ Editar', callback_data: `edit_${id}` }],
+              [{ text: '⚡ Respuesta rápida', callback_data: `fast_${id}` }],
+              [{ text: '❌ Rechazar', callback_data: `cancel_${id}` }]
+            ]
+          }
         }
-      }
-    );
+      );
 
-    return bot.sendMessage(msg.chat.id, '⏳ Consulta enviada...');
+      return bot.sendMessage(msg.chat.id, '⏳ Consulta enviada...');
+    }
   }
 
-  // 🔥 FLUJO ADMIN
+  // 🔥 FLUJO ADMIN (EDITAR)
   if (sesionesAdmin[userId]) {
     const estado = sesionesAdmin[userId];
 
@@ -184,7 +186,7 @@ bot.on('message', (msg) => {
   }
 });
 
-// SERVER
+// 🚀 SERVER
 app.listen(PORT, () => {
   console.log('Servidor activo 🚀');
 });
