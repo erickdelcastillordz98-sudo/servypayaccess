@@ -8,7 +8,7 @@ app.use(express.json());
 const PORT = process.env.PORT || 3000;
 const ADMIN_ID = 6761870413;
 
-// 🔥 BOT (ANTES DE USARLO)
+// 🤖 BOT
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 
 // BASE DE DATOS
@@ -79,7 +79,7 @@ app.get('/pagos/:userId', (req, res) => {
 
 // 🤖 START
 bot.onText(/\/start/, (msg) => {
-  bot.sendMessage(msg.chat.id, '💸 ServyPayAccess PRO', {
+  bot.sendMessage(msg.chat.id, '🏦 ServyPayAccess\nSistema de pagos autorizado', {
     reply_markup: {
       keyboard: [
         ['💰 Crear pago'],
@@ -91,35 +91,35 @@ bot.onText(/\/start/, (msg) => {
   });
 });
 
-// 🤖 MENSAJES (AQUÍ VA TODO)
+// 🤖 MENSAJES
 bot.on('message', async (msg) => {
   const text = msg.text;
   const userId = msg.from.id;
 
   try {
 
-    // 👑 ADMIN PANEL
+    // 👑 ADMIN PANEL CON BOTONES
     if (text === '/admin') {
       if (userId !== ADMIN_ID) return;
 
       const res = await axios.get(`http://localhost:${PORT}/admin/pagos`);
 
-      let lista = res.data
-        .map(p => `ID:${p.id} - $${p.monto} - ${p.estado}`)
-        .join('\n');
+      if (res.data.length === 0) {
+        return bot.sendMessage(msg.chat.id, 'Sin pagos');
+      }
 
-      return bot.sendMessage(msg.chat.id, `👑 PANEL ADMIN\n${lista || 'Sin pagos'}`);
-    }
-
-    // 👑 APROBAR
-    if (text.startsWith('/aprobar')) {
-      if (userId !== ADMIN_ID) return;
-
-      const id = text.split(' ')[1];
-
-      await axios.post(`http://localhost:${PORT}/admin/aprobar/${id}`);
-
-      return bot.sendMessage(msg.chat.id, `✅ Pago ${id} aprobado`);
+      res.data.forEach(p => {
+        bot.sendMessage(msg.chat.id,
+          `🧾 ID:${p.id}\n💰 $${p.monto}\n📌 ${p.estado}`,
+          {
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: '✅ Aprobar', callback_data: `aprobar_${p.id}` }]
+              ]
+            }
+          }
+        );
+      });
     }
 
     // CREAR PAGO
@@ -137,14 +137,24 @@ bot.on('message', async (msg) => {
     if (text === '📜 Historial') {
       const res = await axios.get(`http://localhost:${PORT}/pagos/${userId}`);
 
-      let lista = res.data.map(p => `ID:${p.id} - $${p.monto}`).join('\n');
+      if (res.data.length === 0) {
+        return bot.sendMessage(msg.chat.id, 'Sin pagos');
+      }
 
-      return bot.sendMessage(msg.chat.id, lista || 'Sin pagos');
+      let lista = res.data
+        .map(p => `🧾 ID:${p.id} - $${p.monto} - ${p.estado}`)
+        .join('\n');
+
+      return bot.sendMessage(msg.chat.id, `📜 Historial:\n${lista}`);
     }
 
-    // SI ES NÚMERO
+    // VALIDACIÓN + CREAR PAGO
     if (!isNaN(text)) {
       const monto = parseFloat(text);
+
+      if (monto <= 0) {
+        return bot.sendMessage(msg.chat.id, '❌ Monto inválido');
+      }
 
       await axios.post(`http://localhost:${PORT}/pago`, {
         userId,
@@ -157,6 +167,23 @@ bot.on('message', async (msg) => {
   } catch (e) {
     console.log(e.message);
     bot.sendMessage(msg.chat.id, '❌ Error sistema');
+  }
+});
+
+// 🔘 BOTONES (APROBAR)
+bot.on('callback_query', async (query) => {
+  const data = query.data;
+
+  try {
+    if (data.startsWith('aprobar_')) {
+      const id = data.split('_')[1];
+
+      await axios.post(`http://localhost:${PORT}/admin/aprobar/${id}`);
+
+      bot.sendMessage(query.message.chat.id, `✅ Pago ${id} aprobado`);
+    }
+  } catch (e) {
+    bot.sendMessage(query.message.chat.id, '❌ Error al aprobar');
   }
 });
 
