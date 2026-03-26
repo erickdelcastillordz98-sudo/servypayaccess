@@ -1,2 +1,1 @@
-# servypayaccess
-Sistema de pagos y comisionistas ServyPayAccess
+ServyPayAccess básico listo para correr con Node.js
