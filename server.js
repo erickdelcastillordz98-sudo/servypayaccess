@@ -7,206 +7,180 @@ app.use(express.json());
 const PORT = process.env.PORT || 3000;
 const ADMIN_ID = 6761870413;
 
-// 🔥 VARIABLES
-let consultasPendientes = {};
-let respuestasAdmin = {};
-
-// 🤖 BOT
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 
-// 🔹 API
+// 🧠 MEMORIA
+let consultas = {};
+let sesionesAdmin = {};
+
+// API
 app.get('/', (req, res) => {
   res.send('API funcionando 🚀');
 });
 
-// 🤖 START
+// START
 bot.onText(/\/start/, (msg) => {
-  bot.sendMessage(msg.chat.id, '🏦 ServyPayAccess\nSistema activo');
+  bot.sendMessage(msg.chat.id, '💸 ServyPayAccess', {
+    reply_markup: {
+      keyboard: [['📱 Consultar Telcel']],
+      resize_keyboard: true
+    }
+  });
 });
 
-// 🤖 MENSAJES
-bot.on('message', async (msg) => {
+// 📱 CREAR CONSULTA
+bot.on('message', (msg) => {
   const text = msg.text;
   const userId = msg.from.id;
 
-  try {
+  // BOTÓN USUARIO
+  if (text === '📱 Consultar Telcel') {
+    return bot.sendMessage(msg.chat.id, '📞 Envía el número:');
+  }
 
-    // 💀 TELCEL → ENVÍA A ADMIN
-    if (text.startsWith('/telcel')) {
-      const numero = text.split(' ')[1];
+  // USUARIO ENVÍA NÚMERO
+  if (!isNaN(text) && text.length >= 10 && userId !== ADMIN_ID) {
+    const id = Date.now();
 
-      if (!numero) {
-        return bot.sendMessage(msg.chat.id, '❌ Usa: /telcel 833XXXXXXX');
+    const usuario = msg.from.username 
+      ? '@' + msg.from.username 
+      : msg.from.first_name;
+
+    consultas[id] = {
+      chatId: msg.chat.id,
+      numero: text,
+      usuario
+    };
+
+    // ENVÍA AL ADMIN
+    bot.sendMessage(ADMIN_ID,
+      `📩 NUEVA CONSULTA\n\n📞 ${text}\n👤 ${usuario}`,
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '✏️ Editar', callback_data: `edit_${id}` }],
+            [{ text: '⚡ Respuesta rápida', callback_data: `fast_${id}` }],
+            [{ text: '❌ Rechazar', callback_data: `cancel_${id}` }]
+          ]
+        }
       }
+    );
 
-      const usuario = msg.from.username 
-        ? '@' + msg.from.username 
-        : msg.from.first_name;
-
-      const id = Date.now();
-
-      consultasPendientes[id] = {
-        chatId: msg.chat.id,
-        numero,
-        usuario
-      };
-
-      bot.sendMessage(ADMIN_ID,
-        `📩 NUEVA CONSULTA TELCEL\n\n📞 ${numero}\n👤 ${usuario}\n\nID: ${id}\n\n/responder ${id}`
-      );
-
-      return bot.sendMessage(msg.chat.id, '⏳ Consulta enviada al sistema...');
-    }
-
-    // 👑 ADMIN INICIA RESPUESTA
-    if (text.startsWith('/responder')) {
-      if (userId !== ADMIN_ID) return;
-
-      const id = text.split(' ')[1];
-
-      if (!consultasPendientes[id]) {
-        return bot.sendMessage(msg.chat.id, '❌ ID no válido');
-      }
-
-      respuestasAdmin[userId] = {
-        paso: 1,
-        id,
-        data: {}
-      };
-
-      return bot.sendMessage(msg.chat.id, '📞 Número:');
-    }
-
-    // 🔥 FLUJO ADMIN (LLENAR TODO)
-    if (respuestasAdmin[userId]) {
-      const estado = respuestasAdmin[userId];
-
-      switch (estado.paso) {
-        case 1:
-          estado.data.numero = text;
-          estado.paso++;
-          return bot.sendMessage(msg.chat.id, '📶 Status:');
-
-        case 2:
-          estado.data.status = text;
-          estado.paso++;
-          return bot.sendMessage(msg.chat.id, '⏱ Tiempo:');
-
-        case 3:
-          estado.data.time = text;
-          estado.paso++;
-          return bot.sendMessage(msg.chat.id, '👤 Perfil:');
-
-        case 4:
-          estado.data.perfil = text;
-          estado.paso++;
-          return bot.sendMessage(msg.chat.id, '📦 Plan:');
-
-        case 5:
-          estado.data.plan = text;
-          estado.paso++;
-          return bot.sendMessage(msg.chat.id, '🌎 Región:');
-
-        case 6:
-          estado.data.region = text;
-          estado.paso++;
-          return bot.sendMessage(msg.chat.id, '💰 Saldo actual:');
-
-        case 7:
-          estado.data.saldo = text;
-          estado.paso++;
-          return bot.sendMessage(msg.chat.id, '💳 Saldo total:');
-
-        case 8:
-          estado.data.total = text;
-          estado.paso++;
-          return bot.sendMessage(msg.chat.id, '✔ Registrado:');
-
-        case 9:
-          estado.data.registrado = text;
-          estado.paso++;
-          return bot.sendMessage(msg.chat.id, '❌ Suspendida:');
-
-        case 10:
-          estado.data.suspendida = text;
-          estado.paso++;
-          return bot.sendMessage(msg.chat.id, '⚠️ Días para corte:');
-
-        case 11:
-          estado.data.corte = text;
-          estado.paso++;
-          return bot.sendMessage(msg.chat.id, '📅 Fecha límite:');
-
-        case 12:
-          estado.data.limite = text;
-          estado.paso++;
-          return bot.sendMessage(msg.chat.id, '📅 Fecha expiración:');
-
-        case 13:
-          estado.data.exp = text;
-
-          const consulta = consultasPendientes[estado.id];
-
-          const mensaje = `
-📱 TELCEL • SYSTEM CHECK
-
-━━━━━━━━━━━━━━━━━━━
-
-📞 NUMERO ⋉ ${estado.data.numero}
-📶 STATUS ⋉ ${estado.data.status}
-⏱ TIME ⋉ ${estado.data.time}
-
-━━━━━━━━━━━━━━━━━━━
-📋 INFORMACIÓN GENERAL
-
-👤 PERFIL ⋉ ${estado.data.perfil}
-📦 PLAN ⋉ ${estado.data.plan}
-🌎 REGIÓN ⋉ ${estado.data.region}
-
-━━━━━━━━━━━━━━━━━━━
-💰 SALDOS
-
-💵 SALDO ACTUAL ⋉ ${estado.data.saldo}
-💳 SALDO TOTAL ⋉ ${estado.data.total}
-
-━━━━━━━━━━━━━━━━━━━
-🔒 ESTADO
-
-✔ REGISTRADO ⋉ ${estado.data.registrado}
-❌ SUSPENDIDA ⋉ ${estado.data.suspendida}
-
-━━━━━━━━━━━━━━━━━━━
-⚠️ ALERTA
-
-⏳ ${estado.data.corte} días para corte
-
-━━━━━━━━━━━━━━━━━━━
-📅 FECHAS
-
-📌 LÍMITE ⋉ ${estado.data.limite}
-📌 EXPIRACIÓN ⋉ ${estado.data.exp}
-
-━━━━━━━━━━━━━━━━━━━
-👤 CHECKED BY ⋉ ${consulta.usuario}
-🤖 BOT BY ⋉ @anonimoenelanonimato
-`;
-
-          bot.sendMessage(consulta.chatId, mensaje);
-
-          delete consultasPendientes[estado.id];
-          delete respuestasAdmin[userId];
-
-          return bot.sendMessage(msg.chat.id, '✅ Consulta enviada');
-      }
-    }
-
-  } catch (e) {
-    console.log(e.message);
-    bot.sendMessage(msg.chat.id, '❌ Error sistema');
+    return bot.sendMessage(msg.chat.id, '⏳ Consulta enviada...');
   }
 });
 
-// 🚀 SERVER
+// 🔘 BOTONES ADMIN
+bot.on('callback_query', async (query) => {
+  const data = query.data;
+  const adminId = query.from.id;
+
+  if (adminId !== ADMIN_ID) return;
+
+  const id = data.split('_')[1];
+  const consulta = consultas[id];
+
+  if (!consulta) return;
+
+  // ✏️ EDITAR
+  if (data.startsWith('edit_')) {
+    sesionesAdmin[adminId] = {
+      id,
+      paso: 1,
+      data: {}
+    };
+
+    return bot.sendMessage(adminId, '📞 Número:');
+  }
+
+  // ⚡ RESPUESTA RÁPIDA
+  if (data.startsWith('fast_')) {
+    return bot.sendMessage(adminId, 'Selecciona saldo:', {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '$50', callback_data: `saldo_${id}_50` },
+            { text: '$100', callback_data: `saldo_${id}_100` },
+            { text: '$200', callback_data: `saldo_${id}_200` }
+          ],
+          [
+            { text: '$500', callback_data: `saldo_${id}_500` },
+            { text: '$1000', callback_data: `saldo_${id}_1000` }
+          ]
+        ]
+      }
+    });
+  }
+
+  // 💰 SALDO RÁPIDO
+  if (data.startsWith('saldo_')) {
+    const parts = data.split('_');
+    const id = parts[1];
+    const saldo = parts[2];
+
+    const c = consultas[id];
+
+    const mensaje = `
+📱 TELCEL CHECK
+
+📞 ${c.numero}
+💰 $${saldo}
+
+👤 ${c.usuario}
+`;
+
+    bot.sendMessage(c.chatId, mensaje);
+    delete consultas[id];
+
+    return bot.sendMessage(adminId, '✅ Enviado');
+  }
+
+  // ❌ CANCELAR
+  if (data.startsWith('cancel_')) {
+    delete consultas[id];
+    return bot.sendMessage(adminId, '❌ Cancelado');
+  }
+});
+
+// 🧠 FLUJO EDITAR
+bot.on('message', (msg) => {
+  const userId = msg.from.id;
+  const text = msg.text;
+
+  if (!sesionesAdmin[userId]) return;
+
+  const estado = sesionesAdmin[userId];
+
+  switch (estado.paso) {
+    case 1:
+      estado.data.numero = text;
+      estado.paso++;
+      return bot.sendMessage(userId, '💰 Saldo:');
+
+    case 2:
+      estado.data.saldo = text;
+
+      const consulta = consultas[estado.id];
+
+      const mensaje = `
+📱 TELCEL CHECK
+
+📞 ${estado.data.numero}
+💰 $${estado.data.saldo}
+
+👤 ${consulta.usuario}
+`;
+
+      bot.sendMessage(consulta.chatId, mensaje);
+
+      delete sesionesAdmin[userId];
+      delete consultas[estado.id];
+
+      return bot.sendMessage(userId, '✅ Enviado');
+  }
+});
+
+// SERVER
 app.listen(PORT, () => {
-  console.log(`Servidor corriendo en puerto ${PORT}`);
+  console.log('Servidor activo');
 });
