@@ -4,7 +4,7 @@ const axios = require('axios');
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 const API = process.env.API_URL;
 
-const ADMIN_ID = 7161225748; // 👑 TU ID
+const ADMIN_ID = 6761870413; // 👑 TU ID
 
 // START
 bot.onText(/\/start/, (msg) => {
