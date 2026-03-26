@@ -1,4 +1,4 @@
-bot.on('message', async (msg) => {
+const bot.on('message', async (msg) => {
   const text = msg.text;
   const userId = msg.from.id;
 
