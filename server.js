@@ -11,10 +11,12 @@ const ADMIN_ID = 6761870413;
 // 🤖 BOT
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 
-// BASE DE DATOS
+// 📦 BASE DE DATOS
 let usuarios = {};
 let pagosGlobal = [];
+let consultasPendientes = {};
 
+// 🔹 FUNCIONES
 function getUser(id) {
   if (!usuarios[id]) {
     usuarios[id] = { saldo: 0, pagos: [] };
@@ -77,19 +79,6 @@ app.get('/pagos/:userId', (req, res) => {
   res.json(user.pagos);
 });
 
-// 🔹 TELCEL (SIMULADO)
-app.get('/telcel/:numero', (req, res) => {
-  const numero = req.params.numero;
-
-  const saldo = Math.floor(Math.random() * 500) + 50;
-
-  res.json({
-    servicio: 'Telcel',
-    numero,
-    saldo
-  });
-});
-
 // 🤖 START
 bot.onText(/\/start/, (msg) => {
   bot.sendMessage(msg.chat.id, '🏦 ServyPayAccess\nSistema de pagos autorizado', {
@@ -104,14 +93,14 @@ bot.onText(/\/start/, (msg) => {
   });
 });
 
-// 🤖 MENSAJES (ÚNICO BLOQUE)
+// 🤖 MENSAJES
 bot.on('message', async (msg) => {
   const text = msg.text;
   const userId = msg.from.id;
 
   try {
 
-    // 💀 TELCEL CHECKER
+    // 💀 TELCEL → ENVÍA A ADMIN
     if (text.startsWith('/telcel')) {
       const numero = text.split(' ')[1];
 
@@ -119,13 +108,39 @@ bot.on('message', async (msg) => {
         return bot.sendMessage(msg.chat.id, '❌ Usa: /telcel 833XXXXXXX');
       }
 
-      const res = await axios.get(`http://localhost:${PORT}/telcel/${numero}`);
-
-      const tiempo = Math.floor(Math.random() * 20) + 10;
-
       const usuario = msg.from.username 
         ? '@' + msg.from.username 
         : msg.from.first_name;
+
+      const idConsulta = Date.now();
+
+      consultasPendientes[idConsulta] = {
+        chatId: msg.chat.id,
+        numero,
+        usuario
+      };
+
+      bot.sendMessage(ADMIN_ID,
+        `📩 NUEVA CONSULTA TELCEL\n\n📞 Número: ${numero}\n👤 Usuario: ${usuario}\n\nID: ${idConsulta}\n\nUsa:\n/setsaldo ${idConsulta} 500`
+      );
+
+      return bot.sendMessage(msg.chat.id, '⏳ Consulta enviada, espera respuesta...');
+    }
+
+    // 👑 ADMIN RESPONDE CONSULTA
+    if (text.startsWith('/setsaldo')) {
+      if (userId !== ADMIN_ID) return;
+
+      const partes = text.split(' ');
+      const id = partes[1];
+      const saldo = partes[2];
+
+      if (!consultasPendientes[id]) {
+        return bot.sendMessage(msg.chat.id, '❌ Consulta no encontrada');
+      }
+
+      const data = consultasPendientes[id];
+      const tiempo = Math.floor(Math.random() * 20) + 10;
 
       const mensaje = `
 ╔═╗ TELCEL SECURE CHECKER v3.1
@@ -133,29 +148,14 @@ bot.on('message', async (msg) => {
 
 ━━━━━━━━━━━━━━━━━━━━━━━
 
-📡 TARGET: ${res.data.numero}
+📡 TARGET: ${data.numero}
 📶 STATUS: VALID LINE ✔
 ⏳ RESPONSE TIME: ${tiempo}s
 
 ━━━━━━━━━━━━━━━━━━━━━━━
-[ NETWORK DATA ]
-
-▸ PROFILE: MASIVOMIX
-▸ PLAN: TELCEL LIBRE CONTROLADO 5
-▸ REGION: 4
-
-━━━━━━━━━━━━━━━━━━━━━━━
 [ BALANCE INFO ]
 
-▸ CURRENT BALANCE: $${res.data.saldo}
-▸ TOTAL BALANCE: $0.00
-
-━━━━━━━━━━━━━━━━━━━━━━━
-[ LINE STATUS ]
-
-▸ REGISTERED: TRUE
-▸ SUSPENDED: FALSE
-▸ CUT-OFF: 19 DAYS
+▸ CURRENT BALANCE: $${saldo}
 
 ━━━━━━━━━━━━━━━━━━━━━━━
 [ FINAL STATUS ]
@@ -165,7 +165,7 @@ bot.on('message', async (msg) => {
 ━━━━━━━━━━━━━━━━━━━━━━━
 [ TRACE INFO ]
 
-▸ USER: ${usuario}
+▸ USER: ${data.usuario}
 ▸ SESSION ID: ${Math.floor(Math.random() * 999999)}
 ▸ NODE: MX-SRV-01
 
@@ -173,10 +173,14 @@ bot.on('message', async (msg) => {
 🤖 SYSTEM: @anonimoenelanonimato
 `;
 
-      return bot.sendMessage(msg.chat.id, mensaje);
+      bot.sendMessage(data.chatId, mensaje);
+
+      delete consultasPendientes[id];
+
+      return bot.sendMessage(msg.chat.id, '✅ Consulta respondida');
     }
 
-    // 👑 ADMIN
+    // 👑 ADMIN PANEL PAGOS
     if (text === '/admin') {
       if (userId !== ADMIN_ID) return;
 
@@ -226,7 +230,7 @@ bot.on('message', async (msg) => {
       return bot.sendMessage(msg.chat.id, `📜 Historial:\n${lista}`);
     }
 
-    // 🔢 CREAR PAGO POR MONTO
+    // 🔢 CREAR PAGO
     if (!isNaN(text)) {
       const monto = parseFloat(text);
 
@@ -248,7 +252,7 @@ bot.on('message', async (msg) => {
   }
 });
 
-// 🔘 BOTONES
+// 🔘 BOTONES APROBAR
 bot.on('callback_query', async (query) => {
   const data = query.data;
 
@@ -260,7 +264,7 @@ bot.on('callback_query', async (query) => {
 
       bot.sendMessage(query.message.chat.id, `✅ Pago ${id} aprobado`);
     }
-  } catch (e) {
+  } catch {
     bot.sendMessage(query.message.chat.id, '❌ Error');
   }
 });
