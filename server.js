@@ -28,62 +28,22 @@ bot.onText(/\/start/, (msg) => {
   });
 });
 
-// 📱 CREAR CONSULTA
-bot.on('message', (msg) => {
-  const text = msg.text;
-  const userId = msg.from.id;
-
-  // BOTÓN USUARIO
-  if (text === '📱 Consultar Telcel') {
-    return bot.sendMessage(msg.chat.id, '📞 Envía el número:');
-  }
-
-  // USUARIO ENVÍA NÚMERO
-  if (!isNaN(text) && text.length >= 10 && userId !== ADMIN_ID) {
-    const id = Date.now();
-
-    const usuario = msg.from.username 
-      ? '@' + msg.from.username 
-      : msg.from.first_name;
-
-    consultas[id] = {
-      chatId: msg.chat.id,
-      numero: text,
-      usuario
-    };
-
-    // ENVÍA AL ADMIN
-    bot.sendMessage(ADMIN_ID,
-      `📩 NUEVA CONSULTA\n\n📞 ${text}\n👤 ${usuario}`,
-      {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: '✏️ Editar', callback_data: `edit_${id}` }],
-            [{ text: '⚡ Respuesta rápida', callback_data: `fast_${id}` }],
-            [{ text: '❌ Rechazar', callback_data: `cancel_${id}` }]
-          ]
-        }
-      }
-    );
-
-    return bot.sendMessage(msg.chat.id, '⏳ Consulta enviada...');
-  }
-});
-
 // 🔘 BOTONES ADMIN
-bot.on('callback_query', async (query) => {
+bot.on('callback_query', (query) => {
   const data = query.data;
   const adminId = query.from.id;
 
   if (adminId !== ADMIN_ID) return;
 
-  const id = data.split('_')[1];
-  const consulta = consultas[id];
+  const parts = data.split('_');
+  const action = parts[0];
+  const id = parts[1];
 
+  const consulta = consultas[id];
   if (!consulta) return;
 
   // ✏️ EDITAR
-  if (data.startsWith('edit_')) {
+  if (action === 'edit') {
     sesionesAdmin[adminId] = {
       id,
       paso: 1,
@@ -94,7 +54,7 @@ bot.on('callback_query', async (query) => {
   }
 
   // ⚡ RESPUESTA RÁPIDA
-  if (data.startsWith('fast_')) {
+  if (action === 'fast') {
     return bot.sendMessage(adminId, 'Selecciona saldo:', {
       reply_markup: {
         inline_keyboard: [
@@ -113,56 +73,88 @@ bot.on('callback_query', async (query) => {
   }
 
   // 💰 SALDO RÁPIDO
-  if (data.startsWith('saldo_')) {
-    const parts = data.split('_');
-    const id = parts[1];
+  if (action === 'saldo') {
     const saldo = parts[2];
-
-    const c = consultas[id];
 
     const mensaje = `
 📱 TELCEL CHECK
 
-📞 ${c.numero}
+📞 ${consulta.numero}
 💰 $${saldo}
 
-👤 ${c.usuario}
+👤 ${consulta.usuario}
 `;
 
-    bot.sendMessage(c.chatId, mensaje);
+    bot.sendMessage(consulta.chatId, mensaje);
+
     delete consultas[id];
 
     return bot.sendMessage(adminId, '✅ Enviado');
   }
 
   // ❌ CANCELAR
-  if (data.startsWith('cancel_')) {
+  if (action === 'cancel') {
     delete consultas[id];
     return bot.sendMessage(adminId, '❌ Cancelado');
   }
 });
 
-// 🧠 FLUJO EDITAR
+// 🤖 MENSAJES (UNO SOLO)
 bot.on('message', (msg) => {
-  const userId = msg.from.id;
   const text = msg.text;
+  const userId = msg.from.id;
 
-  if (!sesionesAdmin[userId]) return;
+  // 🔹 BOTÓN USUARIO
+  if (text === '📱 Consultar Telcel') {
+    return bot.sendMessage(msg.chat.id, '📞 Envía el número:');
+  }
 
-  const estado = sesionesAdmin[userId];
+  // 🔹 USUARIO ENVÍA NÚMERO
+  if (!isNaN(text) && text.length >= 10 && userId !== ADMIN_ID) {
+    const id = Date.now();
 
-  switch (estado.paso) {
-    case 1:
-      estado.data.numero = text;
-      estado.paso++;
-      return bot.sendMessage(userId, '💰 Saldo:');
+    const usuario = msg.from.username 
+      ? '@' + msg.from.username 
+      : msg.from.first_name;
 
-    case 2:
-      estado.data.saldo = text;
+    consultas[id] = {
+      chatId: msg.chat.id,
+      numero: text,
+      usuario
+    };
 
-      const consulta = consultas[estado.id];
+    bot.sendMessage(ADMIN_ID,
+      `📩 NUEVA CONSULTA\n\n📞 ${text}\n👤 ${usuario}`,
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '✏️ Editar', callback_data: `edit_${id}` }],
+            [{ text: '⚡ Respuesta rápida', callback_data: `fast_${id}` }],
+            [{ text: '❌ Rechazar', callback_data: `cancel_${id}` }]
+          ]
+        }
+      }
+    );
 
-      const mensaje = `
+    return bot.sendMessage(msg.chat.id, '⏳ Consulta enviada...');
+  }
+
+  // 🔥 FLUJO ADMIN (EDITAR)
+  if (sesionesAdmin[userId]) {
+    const estado = sesionesAdmin[userId];
+
+    switch (estado.paso) {
+      case 1:
+        estado.data.numero = text;
+        estado.paso++;
+        return bot.sendMessage(userId, '💰 Saldo:');
+
+      case 2:
+        estado.data.saldo = text;
+
+        const consulta = consultas[estado.id];
+
+        const mensaje = `
 📱 TELCEL CHECK
 
 📞 ${estado.data.numero}
@@ -171,16 +163,17 @@ bot.on('message', (msg) => {
 👤 ${consulta.usuario}
 `;
 
-      bot.sendMessage(consulta.chatId, mensaje);
+        bot.sendMessage(consulta.chatId, mensaje);
 
-      delete sesionesAdmin[userId];
-      delete consultas[estado.id];
+        delete sesionesAdmin[userId];
+        delete consultas[estado.id];
 
-      return bot.sendMessage(userId, '✅ Enviado');
+        return bot.sendMessage(userId, '✅ Enviado');
+    }
   }
 });
 
 // SERVER
 app.listen(PORT, () => {
-  console.log('Servidor activo');
+  console.log('Servidor activo 🚀');
 });
